@@ -1,3 +1,5 @@
 # 28.30 AIs
 
 A Fortnite **28.30** (Chapter 5 Season 1) gameserver that fills Battle Royale matches with **100 AI players**. creds to (https://github.com/plooshi/Erbium) i guess...
+
+THANK YOU DADDY CLAUDE
