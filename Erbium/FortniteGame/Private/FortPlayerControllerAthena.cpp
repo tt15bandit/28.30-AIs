@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "../Public/FortPlayerControllerAthena.h"
+#include "../../Erbium/Public/Bots.h"
 #include "../../Erbium/Public/Configuration.h"
 #include "../../Erbium/Public/Events.h"
 #include "../../Erbium/Public/GUI.h"
@@ -1108,6 +1109,10 @@ void AFortPlayerControllerAthena::ClientOnPawnDied(AFortPlayerControllerAthena* 
     auto KillerPawn = (AFortPlayerPawnAthena*)DeathReport.KillerPawn;
     auto KillerPlayerController = KillerPlayerState ? (AFortPlayerControllerAthena*)KillerPlayerState->Owner : nullptr;
 
+    // bots are owned by AI controllers, don't treat them like players
+    if (KillerPlayerController && !KillerPlayerController->IsA<AFortPlayerControllerAthena>())
+        KillerPlayerController = nullptr;
+
     if (VersionInfo.FortniteVersion > 1.8 || VersionInfo.EngineVersion >= 4.19)
     {
         if (PlayerState->HasPawnDeathLocation())
@@ -1202,7 +1207,8 @@ void AFortPlayerControllerAthena::ClientOnPawnDied(AFortPlayerControllerAthena* 
                 // Interface->GetOwnedGameplayTags(&TargetTags);
             }
 
-            KillerPlayerController->GetQuestManager(1)->SendStatEvent(KillerPlayerController, EFortQuestObjectiveStatEvent::GetKill(), 1, false, PlayerController->Pawn, TargetTags);
+            if (KillerPlayerController)
+                KillerPlayerController->GetQuestManager(1)->SendStatEvent(KillerPlayerController, EFortQuestObjectiveStatEvent::GetKill(), 1, false, PlayerController->Pawn, TargetTags);
 
             TargetTags.GameplayTags.Free();
             TargetTags.ParentTags.Free();
@@ -1259,7 +1265,7 @@ void AFortPlayerControllerAthena::ClientOnPawnDied(AFortPlayerControllerAthena* 
                 PlayerController->Pawn->CharacterMovement->ProcessEvent(PlayerController->Pawn->CharacterMovement->GetFunction("DisableMovement"), nullptr);
             }
 
-            if (PlayerController->Pawn && KillerPlayerState && KillerPlayerState != PlayerState && KillerPlayerState->Place == 1)
+            if (PlayerController->Pawn && KillerPlayerController && KillerPlayerState != PlayerState && KillerPlayerState->Place == 1 && Bots::GetAliveBotCount() == 0)
             {
                 /*if (PlayerState->Place == 1)
                 {
@@ -1612,7 +1618,6 @@ std::unordered_map<std::string, std::vector<FVector>> Waypoints;
 extern uint64_t ApplyCharacterCustomization;
 extern uint64_t NotifyGameMemberAdded_;
 
-int32 PlayerBotID = 0;
 void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
 {
     FString Msg;
@@ -1657,7 +1662,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
     cheat speed <Speed> - Sets the player's movement speed
     cheat timeofday <Hour> - Sets the time of day (0-23)
     cheat pausetimeofday - Pauses/Unpauses the time of day
-    cheat spawnbot - Spawns a player bot at your location (WIP)
+    cheat spawnbot <Count = 1> - Spawns AI bots near your location
     cheat startevent - Starts the event for the current version
     cheat tp <X> <Y> <Z> - Teleports to a location
     cheat launch <X> <Y> <Z> - Launches the player
@@ -2011,7 +2016,6 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
             if (!PlayerController->Pawn)
                 return;
 
-            auto CallerController = PlayerController;
             int Count = 1;
 
             if (args.size() >= 2)
@@ -2025,151 +2029,19 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 }
             }
 
+            int Spawned = 0;
             for (int i = 0; i < Count; i++)
             {
-                auto Transform = PlayerController->Pawn->GetTransform();
+                auto Location = PlayerController->Pawn->K2_GetActorLocation();
+                Location.X += (rand() % 1000) - 500;
+                Location.Y += (rand() % 1000) - 500;
+                Location.Z += 100;
 
-                auto GameMode = (AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode;
-                auto GameState = GameMode->GameState;
-                // auto PlayerController = (AFortPlayerControllerAthena*)UWorld::SpawnActor(GameMode->PlayerControllerClass, FVector{});
-                auto Pawn = (AFortPlayerPawnAthena*)UWorld::SpawnActor(GameMode->DefaultPawnClass, Transform);
-                auto PlayerController = (AFortPlayerControllerAthena*)UWorld::SpawnActor(FindObject<UClass>(L"/Game/Athena/Athena_PlayerController.Athena_PlayerController_C"), Transform);
-                // auto PlayerState = PlayerController->PlayerState;
-
-                if (!PlayerController || !Pawn)
-                    continue;
-
-                PlayerController->Possess(Pawn);
-                PlayerController->MyFortPawn = Pawn; // dont't ask, crashes on 27+
-
-                auto PlayerState = (AFortPlayerStateAthena*)UWorld::SpawnActor(AFortPlayerStateAthena::StaticClass(), Transform);
-
-                PlayerState->SetOwner(PlayerController);
-
-                PlayerController->PlayerState = PlayerState;
-                PlayerController->OnRep_PlayerState();
-
-                Pawn->PlayerState = PlayerState;
-                Pawn->OnRep_PlayerState();
-
-                Pawn->SetMaxHealth(100.f);
-                // Pawn->SetHealth(100.f);
-
-                PlayerState->TeamIndex = AFortGameMode::PickTeam(GameMode, 0, PlayerController);
-                if (PlayerState->HasSquadId())
-                    PlayerState->SquadId = PlayerState->TeamIndex - 3;
-                if (PlayerState->HasbIsABot())
-                    PlayerState->bIsABot = true;
-
-                if (GameState->HasGameMemberInfoArray())
-                {
-                    auto Member = (FGameMemberInfo*)malloc(FGameMemberInfo::Size());
-                    memset((PBYTE)Member, 0, FGameMemberInfo::Size());
-
-                    Member->MostRecentArrayReplicationKey = -1;
-                    Member->ReplicationID = -1;
-                    Member->ReplicationKey = -1;
-                    Member->TeamIndex = PlayerState->TeamIndex;
-                    Member->SquadId = PlayerState->SquadId;
-                    Member->MemberUniqueId = PlayerState->UniqueId;
-
-                    GameState->GameMemberInfoArray.Members.Add(*Member, FGameMemberInfo::Size());
-                    GameState->GameMemberInfoArray.MarkItemDirty(*Member);
-
-                    auto NotifyGameMemberAdded = (void (*)(AFortGameStateAthena*, uint8_t, uint8_t, FUniqueNetIdRepl*))NotifyGameMemberAdded_;
-                    if (NotifyGameMemberAdded)
-                        NotifyGameMemberAdded(GameState, Member->SquadId, Member->TeamIndex, &Member->MemberUniqueId);
-
-                    free(Member);
-                }
-
-                for (auto& AbilitySet : AFortGameMode::AbilitySets)
-                    PlayerState->AbilitySystemComponent->GiveAbilitySet(AbilitySet);
-
-                /*PlayerController->WorldInventory = (AFortInventory*)UWorld::SpawnActor(AFortInventory::StaticClass(), FVector{});
-                PlayerController->WorldInventory->SetOwner(PlayerController);
-                PlayerController->WorldInventory->InventoryType = 0;*/
-                // PlayerController->bHasInitializedWorldInventory = true;
-
-                GameState->PlayersLeft++;
-                GameState->OnRep_PlayersLeft();
-
-                GameMode->AlivePlayers.Add(PlayerController);
-
-                static auto Commando = FindObject(L"/Game/Athena/Heroes/HID_001_Athena_Commando_F.HID_001_Athena_Commando_F", nullptr);
-                static auto Commando2 = FindObject(L"/Game/Athena/Heroes/HID_Commando_Athena_01.HID_Commando_Athena_01", nullptr);
-                PlayerState->HeroType = Commando ? Commando : Commando2;
-
-                static auto CharacterPartsOffset = PlayerState->GetOffset("CharacterParts", 0x100000);
-
-                if (CharacterPartsOffset == -1)
-                {
-                    static auto CharacterPartsOff = PlayerState->GetOffset("CharacterParts");
-                    if (CharacterPartsOff == -1)
-                        CharacterPartsOff = PlayerState->GetOffset("LocalCharacterParts");
-                    auto& CharacterParts = GetFromOffset<const UObject* [0x6]>(PlayerState, CharacterPartsOff);
-
-                    static auto Head = FindObject<UObject>(L"/Game/Characters/CharacterParts/Female/Medium/Heads/F_Med_Head1.F_Med_Head1");
-                    static auto Body = FindObject<UObject>(L"/Game/Characters/CharacterParts/Female/Medium/Bodies/F_Med_Soldier_01.F_Med_Soldier_01");
-                    static auto Backpack = FindObject<UObject>(L"/Game/Characters/CharacterParts/Backpacks/NoBackpack.NoBackpack");
-
-                    CharacterParts[0] = Head;
-                    CharacterParts[1] = Body;
-                    CharacterParts[3] = Backpack;
-                }
-                else
-                {
-                    static auto CharacterPartsOff = PlayerState->GetOffset("CharacterParts");
-                    auto& CustomCharacterParts = GetFromOffset<FCustomCharacterParts>(PlayerState, CharacterPartsOff);
-                    static auto PartsOffset = FCustomCharacterParts::StaticStruct()->GetOffset("Parts");
-                    auto& CharacterParts = GetFromOffset<const UObject* [0x6]>(&CustomCharacterParts, PartsOffset);
-
-                    static auto Head = FindObject<UObject>(L"/Game/Characters/CharacterParts/Female/Medium/Heads/F_Med_Head1.F_Med_Head1");
-                    static auto Body = FindObject<UObject>(L"/Game/Characters/CharacterParts/Female/Medium/Bodies/F_Med_Soldier_01.F_Med_Soldier_01");
-                    static auto Backpack = FindObject<UObject>(L"/Game/Characters/CharacterParts/Backpacks/NoBackpack.NoBackpack");
-
-                    CharacterParts[0] = Head;
-                    CharacterParts[1] = Body;
-                    CharacterParts[3] = Backpack;
-                }
-
-                if (ApplyCharacterCustomization)
-                    ((void (*)(AActor*, AFortPlayerPawnAthena*))ApplyCharacterCustomization)(PlayerState, Pawn);
-
-                PlayerBotID++;
-                std::string Name = "Erbium Bot (#" + std::to_string(PlayerBotID) + ")";
-
-                std::wstring WideName(Name.begin(), Name.end());
-
-                FString BotName = FString(WideName.c_str());
-
-                if (std::floor(VersionInfo.FortniteVersion) < 9)
-                {
-                    PlayerController->ServerChangeName(BotName);
-                }
-                else
-                {
-                    GameMode->ChangeName(PlayerController, BotName, true);
-                }
-
-                PlayerState->OnRep_PlayerName();
-
-                /*static auto DefaultPickaxe = FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Harvest_Pickaxe_Athena_C_T01.WID_Harvest_Pickaxe_Athena_C_T01");
-
-                PlayerController->WorldInventory->GiveItem(DefaultPickaxe);
-
-                static auto SmartItem	DefClass = FindClass("FortSmartBuildingItemDefinition");
-
-                for (int i = 0; i < GameMode->StartingItems.Num(); i++)
-                {
-                    auto& StartingItem = GameMode->StartingItems.Get(i, FItemAndCount::Size());
-
-                    if (StartingItem.Count && (!SmartItemDefClass || !StartingItem.Item->IsA(SmartItemDefClass)))
-                        PlayerController->WorldInventory->GiveItem(StartingItem.Item, StartingItem.Count);
-                }*/
-
-                // CallerController->ClientMessage(FString(L"Spawned a player bot!"), FName(), 1.f); // todo: fix
+                if (Bots::SpawnBot(Location))
+                    Spawned++;
             }
+
+            PlayerController->ClientMessage(FString(std::wstring(L"Spawned " + std::to_wstring(Spawned) + L" bot(s)!").c_str()), FName(), 1.f);
         }
         else if (command == "startevent")
         {

@@ -120,6 +120,9 @@
     <ClInclude Include="Erbium\Public\Misc.h">
       <Filter>Erbium\Public</Filter>
     </ClInclude>
+    <ClInclude Include="Erbium\Public\Bots.h">
+      <Filter>Erbium\Public</Filter>
+    </ClInclude>
     <ClInclude Include="Erbium\Public\Utils.h">
       <Filter>Erbium\Public</Filter>
     </ClInclude>
@@ -238,6 +241,9 @@
       <Filter>Erbium\Private</Filter>
     </ClCompile>
     <ClCompile Include="Erbium\Private\Misc.cpp">
+      <Filter>Erbium\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="Erbium\Private\Bots.cpp">
       <Filter>Erbium\Private</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp">
