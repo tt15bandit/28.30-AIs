@@ -483,6 +483,8 @@ public:
     static FFortItemEntry* MakeItemEntry(const UFortItemDefinition*, int32, int32);
     static FFortRangedWeaponStats* GetStats(const UFortWeaponItemDefinition*);
     static bool IsPrimaryQuickbar(const UFortItemDefinition*);
+    static bool IsRemovedItem(const UFortItemDefinition*);
+    static void DestroyRemovedPickups();
     void UpdateEntry(FFortItemEntry&);
     void SetRequiresUpdate();
     static void RemoveWeaponAbilities(AActor*);

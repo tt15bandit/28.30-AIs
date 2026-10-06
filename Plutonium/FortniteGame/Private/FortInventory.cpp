@@ -370,7 +370,7 @@ uint64_t SetPickupItems;
 AFortPickupAthena* AFortInventory::SpawnPickup(FVector Loc, FFortItemEntry& Entry, long long SourceTypeFlag, long long SpawnSource, AFortPlayerPawnAthena* Pawn, int OverrideCount, bool Toss, bool RandomRotation,
                                                bool bCombine, const UClass* OverrideClass, FVector FinalLoc)
 {
-    if (!&Entry)
+    if (!&Entry || IsRemovedItem(Entry.ItemDefinition))
         return nullptr;
     AFortPickupAthena* NewPickup = UWorld::SpawnActor<AFortPickupAthena>(OverrideClass ? OverrideClass : AFortPickupAthena::StaticClass(), Loc, {});
     if (!NewPickup)
@@ -429,7 +429,7 @@ AFortPickupAthena* AFortInventory::SpawnPickup(FVector Loc, const UFortItemDefin
 
 AFortPickupAthena* AFortInventory::SpawnPickup(ABuildingContainer* Container, FFortItemEntry& Entry, AFortPlayerPawnAthena* Pawn, int OverrideCount)
 {
-    if (!&Entry)
+    if (!&Entry || IsRemovedItem(Entry.ItemDefinition))
         return nullptr;
 
     auto ContainerLoc = Container->K2_GetActorLocation();
@@ -497,6 +497,41 @@ AFortPickupAthena* AFortInventory::SpawnPickup(ABuildingContainer* Container, FF
     NewPickup->OnRep_TossedFromContainer();
 
     return NewPickup;
+}
+
+bool AFortInventory::IsRemovedItem(const UFortItemDefinition* ItemDefinition)
+{
+    if (!ItemDefinition)
+        return false;
+
+    static std::unordered_map<const UFortItemDefinition*, bool> Cache;
+    if (auto It = Cache.find(ItemDefinition); It != Cache.end())
+        return It->second;
+
+    auto Name = ItemDefinition->Name.ToString();
+    bool bRemoved = false;
+    for (auto& RemovedItem : FConfiguration::RemovedItems)
+        if (Name.find(RemovedItem) != std::string::npos)
+            bRemoved = true;
+
+    return Cache[ItemDefinition] = bRemoved;
+}
+
+// catches pickups the game spawns on its own (boss drops etc)
+void AFortInventory::DestroyRemovedPickups()
+{
+    static double NextCheckTime = 0;
+    auto Time = UGameplayStatics::GetTimeSeconds(UWorld::GetWorld());
+    if (Time < NextCheckTime)
+        return;
+    NextCheckTime = Time + 2.0;
+
+    TArray<AFortPickupAthena*> Pickups;
+    Utils::GetAll<AFortPickupAthena>(Pickups);
+    for (auto& Pickup : Pickups)
+        if (Pickup && !Pickup->bActorIsBeingDestroyed && IsRemovedItem(Pickup->PrimaryPickupItemEntry.ItemDefinition))
+            Pickup->K2_DestroyActor();
+    Pickups.Free();
 }
 
 bool AFortInventory::IsPrimaryQuickbar(const UFortItemDefinition* ItemDefinition)

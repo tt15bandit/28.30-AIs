@@ -31,6 +31,13 @@ struct FConfiguration
     static inline auto bBotsSyncPlayersLeft = true;  // count bots in the players left counter
     static inline auto BotMaxGlideDistance = 60000.f; // how far from the bus path bots will pick a landing spot
     static inline auto BotAccuracy = 0.6f;           // Plutonium AI aim (0-1)
+
+    // items that never spawn (matched against the item definition name, e.g. WID_Shotgun_Pump_Paprika_Athena_UR_Boss)
+    static inline constexpr const char* RemovedItems[] = {
+        "Paprika",    // Peter Griffin's Hammer Pump Shotgun
+        "Boss_Midas", // Jules' Drum Gun
+        "Jules",      // any other Jules weapon
+    };
     static inline constexpr auto bGUI = true;
     static inline constexpr auto bCustomCrashReporter = true;
     static inline constexpr auto bUseStdoutLog = false;
