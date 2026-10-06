@@ -17,6 +17,7 @@ struct FConfiguration
     static inline auto bKeepInventory = false;
     static inline auto Port = 7777;
     static inline auto bEnableIris = true;
+    static inline auto bTacticalSprint = true; // chapter 5 sprint (keep on for 28.x, clients sprint regardless)
 
     // bot lobby (see Plutonium/Private/Bots.cpp)
     static inline auto bBotLobby = true;
@@ -37,6 +38,11 @@ struct FConfiguration
         "Paprika",    // Peter Griffin's Hammer Pump Shotgun
         "Boss_Midas", // Jules' Drum Gun
         "Jules",      // any other Jules weapon
+    };
+    // also removed if the in-game name contains any of these (case-insensitive)
+    static inline constexpr const char* RemovedItemDisplayNames[] = {
+        "Peter Griffin",
+        "Jules",
     };
     static inline constexpr auto bGUI = true;
     static inline constexpr auto bCustomCrashReporter = true;

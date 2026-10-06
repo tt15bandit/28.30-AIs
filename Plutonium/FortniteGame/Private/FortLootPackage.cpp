@@ -123,6 +123,17 @@ void UFortLootPackage::SetupLDSForPackage(TArray<FFortItemEntry*>& LootDrops, SD
         return;
 
     auto LootPackage = PickWeighted(LPGroups, [](float Total) { return ((float)rand() / 32767.f) * Total; });
+
+    // reroll removed items (FConfiguration::RemovedItems) so the slot gets something else
+    while (LootPackage && LootPackage->LootPackageCall.Num() <= 1 && AFortInventory::IsRemovedItem(LootPackage->ItemDefinition.Get()))
+    {
+        auto Idx = LPGroups.SearchIndex([&](FFortLootPackageData* Val) { return Val == LootPackage; });
+        if (Idx == -1)
+            break;
+        LPGroups.Remove(Idx);
+        LootPackage = LPGroups.Num() > 0 ? PickWeighted(LPGroups, [](float Total) { return ((float)rand() / 32767.f) * Total; }) : nullptr;
+    }
+
     if (!LootPackage)
         return;
 

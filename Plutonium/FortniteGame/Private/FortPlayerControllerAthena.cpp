@@ -1411,7 +1411,7 @@ public:
 
 void AFortPlayerControllerAthena::InternalPickup(FFortItemEntry* PickupEntry)
 {
-    if (!PickupEntry || !PickupEntry->ItemDefinition)
+    if (!PickupEntry || !PickupEntry->ItemDefinition || AFortInventory::IsRemovedItem(PickupEntry->ItemDefinition))
         return;
 
     auto MaxStack = (int32)PickupEntry->ItemDefinition->GetMaxStackSize();

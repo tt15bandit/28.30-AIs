@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "../Public/FortInventory.h"
 #include "../../Plutonium/Public/Configuration.h"
+#include "../Public/FortGameMode.h"
 #include "../Public/FortKismetLibrary.h"
 #include "../Public/FortPlayerControllerAthena.h"
 #include "../Public/FortPlayerPawnAthena.h"
@@ -514,10 +515,27 @@ bool AFortInventory::IsRemovedItem(const UFortItemDefinition* ItemDefinition)
         if (Name.find(RemovedItem) != std::string::npos)
             bRemoved = true;
 
+    auto Lower = [](UEAllocatedString Str)
+    {
+        std::transform(Str.begin(), Str.end(), Str.begin(), [](char c) { return (char)tolower(c); });
+        return Str;
+    };
+
+    if (!bRemoved && (ItemDefinition->HasItemName() || ItemDefinition->HasDisplayName()))
+    {
+        auto DisplayName = Lower(UKismetTextLibrary::Conv_TextToString(ItemDefinition->HasItemName() ? ItemDefinition->ItemName : ItemDefinition->DisplayName).ToString());
+        for (auto& RemovedName : FConfiguration::RemovedItemDisplayNames)
+            if (DisplayName.find(Lower(RemovedName)) != std::string::npos)
+                bRemoved = true;
+    }
+
+    if (bRemoved)
+        printf("Removed item: %s\n", Name.c_str());
+
     return Cache[ItemDefinition] = bRemoved;
 }
 
-// catches pickups the game spawns on its own (boss drops etc)
+// catches pickups the game spawns on its own (boss drops etc) and takes the items off anyone who still has them
 void AFortInventory::DestroyRemovedPickups()
 {
     static double NextCheckTime = 0;
@@ -532,6 +550,26 @@ void AFortInventory::DestroyRemovedPickups()
         if (Pickup && !Pickup->bActorIsBeingDestroyed && IsRemovedItem(Pickup->PrimaryPickupItemEntry.ItemDefinition))
             Pickup->K2_DestroyActor();
     Pickups.Free();
+
+    auto GameMode = (AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode;
+    for (auto& Player : GameMode->AlivePlayers)
+    {
+        auto PlayerController = Player ? Player->Cast<AFortPlayerControllerAthena>() : nullptr;
+        auto Inventory = PlayerController ? PlayerController->WorldInventory : nullptr;
+        if (!Inventory)
+            continue;
+
+        UEAllocatedVector<FGuid> ToRemove;
+        for (int i = 0; i < Inventory->Inventory.ReplicatedEntries.Num(); i++)
+        {
+            auto& Entry = Inventory->Inventory.ReplicatedEntries.Get(i, FFortItemEntry::Size());
+            if (IsRemovedItem(Entry.ItemDefinition))
+                ToRemove.push_back(Entry.ItemGuid);
+        }
+
+        for (auto& Guid : ToRemove)
+            Inventory->Remove(Guid);
+    }
 }
 
 bool AFortInventory::IsPrimaryQuickbar(const UFortItemDefinition* ItemDefinition)
