@@ -481,12 +481,61 @@ void ServerReplicateActors(UNetDriver* Driver, float DeltaSeconds)
     ViewerMap.clear();
 }
 
+class AGameNetworkManager : public AActor
+{
+public:
+    UCLASS_COMMON_MEMBERS(AGameNetworkManager);
+
+    DEFINE_PROP(MAXPOSITIONERRORSQUARED, float);
+    DEFINE_PROP(ClientAuthorativePosition, bool);
+    DEFINE_PROP(bMovementTimeDiscrepancyDetection, bool);
+    DEFINE_PROP(bMovementTimeDiscrepancyResolution, bool);
+};
+
+// stops the server from correcting (rubber-banding) players when its movement sim disagrees with the client's,
+// e.g. sprint/movement abilities the server doesn't simulate exactly like the client
+static void ApplyMovementSettings()
+{
+    static bool bApplied = false;
+    if (bApplied || !FConfiguration::bClientAuthoritativeMovement || !AGameNetworkManager::StaticClass())
+        return;
+
+    auto Apply = [](const AGameNetworkManager* Manager)
+    {
+        if (!Manager)
+            return;
+        if (Manager->HasClientAuthorativePosition())
+            Manager->ClientAuthorativePosition = true;
+        if (Manager->HasMAXPOSITIONERRORSQUARED())
+            Manager->MAXPOSITIONERRORSQUARED = 10000.f;
+        if (Manager->HasbMovementTimeDiscrepancyDetection())
+            Manager->bMovementTimeDiscrepancyDetection = false;
+        if (Manager->HasbMovementTimeDiscrepancyResolution())
+            Manager->bMovementTimeDiscrepancyResolution = false;
+    };
+
+    Apply(AGameNetworkManager::GetDefaultObj());
+
+    TArray<AGameNetworkManager*> Managers;
+    Utils::GetAll<AGameNetworkManager>(Managers);
+    for (auto& Manager : Managers)
+        Apply(Manager);
+
+    if (Managers.Num() > 0)
+    {
+        bApplied = true;
+        printf("Applied client authoritative movement to %d network manager(s).\n", Managers.Num());
+    }
+    Managers.Free();
+}
+
 void UNetDriver::TickFlush(UNetDriver* Driver, float DeltaSeconds)
 {
     if (Driver == UWorld::GetWorld()->NetDriver)
     {
         Bots::Tick();
         AFortInventory::DestroyRemovedPickups();
+        ApplyMovementSettings();
     }
 
     if (VersionInfo.FortniteVersion >= 25.20)
@@ -567,6 +616,7 @@ void UNetDriver::TickFlush__RepGraph(UNetDriver* Driver, float DeltaSeconds)
     {
         Bots::Tick();
         AFortInventory::DestroyRemovedPickups();
+        ApplyMovementSettings();
     }
 
     if (Driver->ReplicationDriver)
@@ -681,6 +731,7 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
     {
         Bots::Tick();
         AFortInventory::DestroyRemovedPickups();
+        ApplyMovementSettings();
     }
 
     if (VersionInfo.FortniteVersion >= 25.20)

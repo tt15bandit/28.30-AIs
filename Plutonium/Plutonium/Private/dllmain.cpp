@@ -138,8 +138,12 @@ void Main()
         // clients sprint anyway, disabling it on the server makes the sprint animation and held weapon glitch
         if (!FConfiguration::bTacticalSprint)
             UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.TacticalSprint 0"), nullptr);
-        else if (SprintCVar)
-            *SprintCVar = true;
+        else
+        {
+            if (SprintCVar)
+                *SprintCVar = true;
+            UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.TacticalSprint 1"), nullptr);
+        }
         // UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Hurdle 0"), nullptr);
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Sliding 0"), nullptr);
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Clambering 0"), nullptr);

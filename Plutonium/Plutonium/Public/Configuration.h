@@ -18,6 +18,7 @@ struct FConfiguration
     static inline auto Port = 7777;
     static inline auto bEnableIris = true;
     static inline auto bTacticalSprint = true; // chapter 5 sprint (keep on for 28.x, clients sprint regardless)
+    static inline auto bClientAuthoritativeMovement = true; // trust client positions instead of rubber-banding players back
 
     // bot lobby (see Plutonium/Private/Bots.cpp)
     static inline auto bBotLobby = true;
